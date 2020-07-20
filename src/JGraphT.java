@@ -173,6 +173,181 @@ public final class JGraphT
     	}
     	return true;
     }
+	
+	/**
+	 * Implements paper for <a href="http://www.cs.uoi.gr/~palios/pubs/D5.pdf">hole free graph recognition</a>
+	 * @param graph
+	 * @return true if graph is a <a href="https://www.graphclasses.org/classes/gc_437.html">hole free graph </a>
+	 */
+	public static <V, E> boolean isHoleFree(Graph<V, E> graph) {
+		HashMap<Triple<V, V, V>, Integer> not_in_hole = new HashMap<>();
+		Integer[] in_path = new Integer[graph.vertexSet().size()];
+		Arrays.fill(in_path, 0);
+		ArrayList<ArrayList<V>> adjList = adjacencyMatrix(graph);
+		ArrayList<V> vertices = new ArrayList<>(graph.vertexSet());
+		for (int i = 0; i < in_path.length; i++) {
+			V u = vertices.get(i);
+			in_path[i] = 1;
+			for (E e : graph.edgeSet()) {
+				V v = graph.getEdgeSource(e);
+				V w = graph.getEdgeTarget(e);
+				if (!u.equals(v) && !u.equals(w)) {
+					Triple<V, V, V> triple = new Triple<V, V, V>(u, v, w);
+					if (!not_in_hole.containsKey(triple)) {
+						not_in_hole.put(triple, 0);
+					}
+					if (adjList.get(vertices.indexOf(u)).contains(v) && !adjList.get(vertices.indexOf(u)).contains(w)
+							&& not_in_hole.get(triple) == 0) {
+						in_path[vertices.indexOf(v)] = 1;
+						boolean hasHole = process(graph, not_in_hole, in_path, adjList, u, v, w);
+						if (hasHole)
+							return false;
+						in_path[vertices.indexOf(v)] = 0;
+					}
+				}
+			}
+			in_path[vertices.indexOf(u)] = 0;
+		}
+		return true;
+	}
+	
+	/**
+	 * Implements paper for <a href="https://www.researchgate.net/publication/339503756_Recognition_and_Optimization_Algorithms_for_P5-Free_Graphs">p5 free graph recognition</a>
+	 * @param graph
+	 * @return true if graph is a <a href="https://www.graphclasses.org/classes/gc_396.html">p5 free graph</a>
+	 */
+	public static <V, E> boolean isGraphP5Free(Graph<V, E> graph) {
+		List<Graph<V, E>> L = new ArrayList<>();
+		L.add(graph);
+		Graph<V, E> H = graph;
+		while (H.vertexSet().size() > 5) {
+			ListTriple<V, V, V> triple = weakDecomposition(H);
+			List<V> A = triple.first;
+			List<V> N = triple.first;
+			List<V> R = triple.first;
+			Set<V> B = new LinkedHashSet<V>();
+			for (V v : H.vertexSet()) {
+				if (N.contains(v)) {
+					List<V> neighbors = Graphs.neighborListOf(H, v);
+					B.addAll(neighbors);
+				}
+			}
+			B.removeAll(R);
+			List<V> C = new ArrayList<>();
+			C.addAll(A);
+			C.removeAll(B);
+			Integer nr = N.size();
+			Integer r = R.size();
+			Integer b = B.size();
+			for (V v : R) {
+				if (H.degreeOf(v) != nr)
+					return false;
+			}
+			for (V v : N) {
+				if (H.degreeOf(v) != b + r)
+					return false;
+			}
+			Graph<V, E> AGraph = new SimpleGraph<V, E>(H.getVertexSupplier(), H.getEdgeSupplier(), false);
+			AGraph.vertexSet().addAll(A);
+			for (V v : H.vertexSet()) {
+				Set<E> edges = H.edgesOf(v);
+				for (E e : edges) {
+					if (A.contains(H.getEdgeSource(e)) && A.contains(H.getEdgeTarget(e))) {
+						AGraph.addEdge(H.getEdgeSource(e), H.getEdgeTarget(e));
+					}
+				}
+			}
+			L.add(AGraph);
+			H = AGraph;
+		}
+		return true;
+	}
+	
+	/**
+	 * Implements paper for <a href="https://www.researchgate.net/publication/266939196_Determination_of_permutation_graphs">permutation graph recognition</a>
+	 * @param graph
+	 * @return true if graph is a <a href="https://www.graphclasses.org/classes/gc_23.html">permutation graph</a>
+	 */
+	public static <V, E> boolean isPermutationGraph(Graph<V, E> graph) {
+		List<List<V>> permutationList = getPermutation(graph, new ArrayList<>(graph.vertexSet()));
+		List<V> vertices = new ArrayList<>(graph.vertexSet());
+		Map<V,Integer> vertexMap = new HashMap<>();
+		for (int i = 0; i < vertices.size(); i++) {
+			vertexMap.put(vertices.get(i), i);
+		}
+		int x = 0;
+		for (V sourceVertex : vertices) {
+			for (List<V> vertexList : permutationList) {
+				V vertex = vertexList.get(0);
+				if (sourceVertex.equals(vertex)) {
+					break;
+				} else {
+					if(vertexMap.get(vertex) > vertexMap.get(sourceVertex)) {
+						if(!graph.containsEdge(sourceVertex, vertex)) {
+							return false;
+						}
+						x++;
+					}
+				}
+			}
+		}
+		return graph.edgeSet().size() == x;
+	}
+	
+	/**
+	 * Implements paper for <a href="https://ir.nctu.edu.tw/bitstream/11536/1095/1/A1996VD36900004.pdf">quasi-threshold graph recognition</a>
+	 * @param graph
+	 * @return true if graph is a <a href="https://www.graphclasses.org/classes/gc_781.html">quasi-threshold graph</a>
+	 */
+	public static <V, E> boolean isQuasiTreshHoldGraph(Graph<V, E> a) {
+		HashMap<V, Triple<Integer, Integer, Integer>> degreeMap = new HashMap<>();
+		Graph<V, E> diGraph = new DefaultDirectedGraph<>(a.getVertexSupplier(), a.getEdgeSupplier(), false);
+		ArrayList<V> allV = new ArrayList<>(a.vertexSet());
+		for (int i = 0; i < allV.size(); i++) {
+			V vertex = allV.get(i);
+			diGraph.addVertex(vertex);
+			degreeMap.put(vertex, new Triple<Integer, Integer, Integer>(a.degreeOf(vertex), 0, 0));
+		}
+		Iterator<E> iterator = a.edgeSet().iterator();
+		while (iterator.hasNext()) {
+			E edge = iterator.next();
+			V vi = a.getEdgeSource(edge);
+			V vj = a.getEdgeTarget(edge);
+			if ((a.degreeOf(vi) > a.degreeOf(vj))
+					|| (a.degreeOf(vi) == a.degreeOf(vj) && allV.indexOf(vi) < allV.indexOf(vj))) {
+				Triple<Integer, Integer, Integer> pair = degreeMap.get(vj);
+				pair.setSecond(pair.getSecond() + 1);
+			} else {
+				Triple<Integer, Integer, Integer> pair = degreeMap.get(vi);
+				pair.setSecond(pair.getSecond() + 1);
+			}
+		}
+		for (int j = 0; j < allV.size(); j++) {
+			V vj = allV.get(j);
+			if (degreeMap.get(vj).getSecond() >= 1) {
+				V vi = getSpecialVertex(allV, degreeMap, Graphs.neighborListOf(a, vj), vj);
+				if (vi != null) {
+					diGraph.addEdge(vi, vj);	
+				}
+			}
+		}
+		for (int j = 0; j < allV.size(); j++) {
+			V vj = allV.get(j);
+			int index = 0;
+			while (!diGraph.incomingEdgesOf(vj).isEmpty()) {
+				vj = diGraph.getEdgeSource(diGraph.incomingEdgesOf(vj).iterator().next());
+				index++;
+			}
+			degreeMap.get(allV.get(j)).setThird(index);
+		}
+		for (int j = 0; j < allV.size(); j++) {
+			Triple<Integer, Integer, Integer> triple = degreeMap.get(allV.get(j));
+			if (triple.getSecond() != triple.getThird())
+				return false;
+		}
+		return true;
+	}
+	
 //_____________________________HELPER_FUNCTIONS_FOR_GRAPH_CREATION_______________________________________________________________________
     
     
@@ -387,4 +562,219 @@ public final class JGraphT
     	    }
     	return g;
     }
+	
+	// builds a adjacency matrix 
+	@SuppressWarnings("unchecked")
+	private static <V, E> ArrayList<ArrayList<V>> adjacencyMatrix(Graph<V, E> graph) {
+		int totalVertices = graph.vertexSet().size();
+		Map<V, Integer> vertexIndexMap = new HashMap<>();
+		V[] vertexMap = (V[]) new Object[totalVertices];
+		int[] outDegree = new int[totalVertices];
+
+		int i = 0;
+		for (V v : graph.vertexSet()) {
+			vertexIndexMap.put(v, i);
+			vertexMap[i] = v;
+			outDegree[i] = graph.outDegreeOf(v);
+			i++;
+		}
+		ArrayList<ArrayList<V>> adjList = new ArrayList<>(totalVertices);
+		for (i = 0; i < totalVertices; i++) {
+			V v = vertexMap[i];
+			ArrayList<V> inNeighbors = new ArrayList<>();
+			for (E e : graph.incomingEdgesOf(v)) {
+				V w = Graphs.getOppositeVertex(graph, e, v);
+				inNeighbors.add(w);
+			}
+			adjList.add(inNeighbors);
+		}
+		return adjList;
+	}
+	
+	// needed for hole free graph recognition
+	private static <V, E> boolean process(Graph<V, E> graph, HashMap<Triple<V, V, V>, Integer> not_in_hole,
+			Integer[] in_path, ArrayList<ArrayList<V>> adjList, V a, V b, V c) {
+		ArrayList<V> vertices = new ArrayList<>(graph.vertexSet());
+		int indexC = vertices.indexOf(c);
+		in_path[indexC] = 1;
+		for (int i = 0; i < vertices.size(); i++) {
+			V d = vertices.get(i);
+			if (!d.equals(a) && !d.equals(b)) {
+				if (adjList.get(indexC).contains(d)) {
+					if (!adjList.get(i).contains(a) || !adjList.get(i).contains(b)) {
+//						System.out.println("P4 in G");
+					}
+					Triple<V, V, V> triple = new Triple<V, V, V>(b, c, d);
+					if (!not_in_hole.containsKey(triple)) {
+						not_in_hole.put(triple, 0);
+					}
+					if (in_path[i] == 1) {
+						return true;
+					} else if (not_in_hole.get(triple) == 0) {
+						boolean hasHole = process(graph, not_in_hole, in_path, adjList, b, c, d);
+						if (hasHole)
+							return true;
+					}
+				}
+			}
+		}
+		in_path[indexC] = 0;
+		Triple<V, V, V> triple = new Triple<V, V, V>(a, b, c);
+		not_in_hole.put(triple, 1);
+		triple = new Triple<V, V, V>(c, b, a);
+		not_in_hole.put(triple, 1);
+		return false;
+	}
+	
+	// weak decomposition algorithmen
+	public static <V, E> Triple<V, V, V> weakDecomposition(Graph<V, E> graph) {
+		List<V> A = new ArrayList<>();
+		List<V> vertices = new ArrayList<>(graph.vertexSet());
+		for (int i = 0; i < vertices.size(); i++) {
+			if (graph.degreeOf(vertices.get(i)) < vertices.size()) {
+				A.add(vertices.get(i));
+				break;
+			}
+		}
+		List<V> N = Graphs.neighborListOf(graph, A.get(0));
+		List<V> R = new ArrayList<>(vertices);
+		R.removeAll(new HashSet<V>(N));
+		R.removeAll(new HashSet<V>(A));
+		for (int i = 0; i < N.size(); i++) {
+			V n = N.get(i);
+			List<V> großeSchnittmenge = new ArrayList<>();
+			for (int j = 0; j < R.size(); j++) {
+				V r = R.get(j);
+				if (!graph.containsEdge(r, n)) {
+					N.remove(n);
+					List<V> schnittMenge = new ArrayList<>();
+					for (V v : Graphs.neighborListOf(graph, n)) {
+						if (R.contains(v) && !N.contains(v)) {
+							schnittMenge.add(v);
+						}
+					}
+					N.addAll(schnittMenge);
+					A.add(n);
+					großeSchnittmenge.addAll(schnittMenge);
+				}
+			}
+			R.removeAll(großeSchnittmenge);
+
+		}
+		return new Triple<V, V, V>(A, N, R);
+	}
+
+	public static <V, E> ListTriple<V, V, V> weakDecomposition(Graph<V, E> graph) {
+		List<V> A = new ArrayList<>();
+		List<V> vertices = new ArrayList<>(graph.vertexSet());
+		for (int i = 0; i < vertices.size(); i++) {
+			if (graph.degreeOf(vertices.get(i)) < vertices.size()) {
+				A.add(vertices.get(i));
+				break;
+			}
+		}
+		List<V> N = Graphs.neighborListOf(graph, A.get(0));
+		List<V> R = new ArrayList<>(vertices);
+		R.removeAll(new HashSet<V>(N));
+		R.removeAll(new HashSet<V>(A));
+		for (int i = 0; i < N.size(); i++) {
+			V n = N.get(i);
+			List<V> großeSchnittmenge = new ArrayList<>();
+			for (int j = 0; j < R.size(); j++) {
+				V r = R.get(j);
+				if (!graph.containsEdge(r, n)) {
+					N.remove(n);
+					List<V> schnittMenge = new ArrayList<>();
+					for (V v : Graphs.neighborListOf(graph, n)) {
+						if (R.contains(v) && !N.contains(v)) {
+							schnittMenge.add(v);
+						}
+					}
+					N.addAll(schnittMenge);
+					A.add(n);
+					großeSchnittmenge.addAll(schnittMenge);
+				}
+			}
+			R.removeAll(großeSchnittmenge);
+
+		}
+		return new ListTriple<V, V, V>(A, N, R);
+	}
+	
+	// gets a permutation from a graph and a list of vertices
+	private static <V, E> List<List<V>> getPermutation(Graph<V, E> graph, List<V> vertices) {
+		LinkedList<List<V>> permutationList = new LinkedList<>();
+		if (vertices.isEmpty()) {
+			return new LinkedList<>();
+		} else if (vertices.size() == 1) {
+			LinkedList<V> node1List = new LinkedList<>();
+			node1List.add(vertices.get(0));
+			permutationList.add(node1List);
+			return permutationList;
+		}
+		List<V> nodesRight = vertices;
+		V node1 = nodesRight.get(0);
+		Set<E> edges = graph.edgesOf(node1);
+		List<V> nodesLeft = new ArrayList<>();
+		for (E e : edges) {
+			V tmpNode = graph.getEdgeSource(e);
+			if (node1.equals(tmpNode)) {
+				tmpNode = graph.getEdgeTarget(e);
+			}
+			if (vertices.contains(tmpNode)) {
+				nodesLeft.add(tmpNode);
+			}
+		}
+		nodesRight.removeAll(nodesLeft);
+		nodesRight.remove(node1);
+		List<List<V>> leftSide = getPermutation(graph, nodesLeft);
+		List<List<V>> rightSide = getPermutation(graph, nodesRight);
+		if (!leftSide.isEmpty()) {
+			for (List<V> leftElement : leftSide) {
+				permutationList.add(leftElement);
+			}
+		}
+		LinkedList<V> node1List = new LinkedList<>();
+		node1List.add(node1);
+		permutationList.add(node1List);
+		if (!rightSide.isEmpty()) {
+			for (List<V> rightElement : rightSide) {
+				permutationList.add(rightElement);
+			}
+		}
+		return permutationList;
+	}
+	
+	// returns a special vertex. Used for quasi treshhold
+	private static <V> V getSpecialVertex(ArrayList<V> allV, HashMap<V, Triple<Integer, Integer, Integer>> degreeMap,
+			List<V> neighborListOf, V vj) {
+		int vjDegree = degreeMap.get(vj).getFirst();
+		Pair<Integer, V> largestIndegree = new Pair<Integer, V>(-1, null);
+		for (int i = 0; i < neighborListOf.size(); i++) {
+			V vi = neighborListOf.get(i);
+			if (degreeMap.get(vi).getSecond() > largestIndegree.getFirst())
+				largestIndegree = new Pair<Integer, V>(degreeMap.get(vi).getSecond(), vi);
+		}
+		if (largestIndegree.getSecond() == null) {
+			return null;
+		}
+		V vi = largestIndegree.getSecond();
+		int viDegree = degreeMap.get(vi).getFirst();
+		if (vjDegree < viDegree || (viDegree == vjDegree && allV.indexOf(vi) < allV.indexOf(vj))) {
+			return vi;
+		}
+		return null;
+	}
+}
+
+class ListTriple<A, B, C> {
+	List<A> first;
+	List<B> secound;
+	List<C> third;
+
+	public ListTriple(List<A> firstElement, List<B> secoundElement, List<C> thirdElement) {
+		this.first = firstElement;
+		this.secound = secoundElement;
+		this.third = thirdElement;
+	}
 }
